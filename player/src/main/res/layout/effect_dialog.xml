@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="match_parent">
+    <TextView
+        android:id="@+id/textView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:textSize="25dp"
+        android:text="色調:" />
+    <RadioGroup
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:id="@+id/colorSet"
+        android:checkedButton="@+id/warm"
+        android:layout_below="@id/textView">
+
+
+
+        <RadioButton
+            android:id="@+id/cold"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="冷" />
+
+        <RadioButton
+            android:id="@+id/warm"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="暖" />
+
+        <RadioButton
+            android:id="@+id/colorful"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="彩" />
+    </RadioGroup>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="#000000"
+        android:layout_below="@id/colorSet"
+        android:id="@+id/line"/>
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/line"
+        android:text="圖形:"
+        android:textSize="25dp"
+        android:id="@+id/text2"/>
+
+    <RadioGroup
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:id="@+id/patternSet"
+        android:layout_below="@id/text2"/>
+
+    <TextView
+        android:id="@+id/patternColor"
+        android:layout_width="60dp"
+        android:layout_height="match_parent"
+        android:layout_above="@+id/patternSet"
+        android:layout_marginLeft="50dp"
+        android:layout_marginStart="50dp"
+        android:layout_toEndOf="@+id/text2"
+        android:layout_toRightOf="@+id/text2"
+        android:layout_below="@+id/line"
+        android:background="#000000"/>
+</RelativeLayout>
