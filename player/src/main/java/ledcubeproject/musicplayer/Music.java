@@ -1,6 +1,7 @@
 package ledcubeproject.musicplayer;
 
 import android.app.Activity;
+import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.drawable.BitmapDrawable;
@@ -41,27 +42,6 @@ import ledcubeproject.ui.ListDialog;
 
 public class Music extends AppCompatActivity {
 
-    //播放play&暫停pause的轉換
-    //循環replay&隨機random的轉換
-    //收藏
-    //清單排序(dialog)-1.依字母  2.有收藏的放前面
-    //CD圖片->歌曲有圖片就會變歌曲的圖
-    //歌名顯示在時間條上面那
-    //FAQ先留著 感覺很酷!
-
-    //   ( ￣□￣)/ <(￣ㄧ￣ ) <(￣ㄧ￣ ) 致敬
-
-    /* 歌曲清單
-    | 歌曲名稱                     時間 |
-     */
-
-    public static final int FIRST_ITEM = 0;
-    public static final int SECOND_ITEM = 1;
-    //////////////////////////////////////////////////////////////////
-    //file manager  宣告
-    private static final String ROOT = "/";
-    private static final String PRE_LEVEL = "..";
-
     AndroidAudioDevice anaudev = new AndroidAudioDevice();
     Player player = new Player(anaudev);
     SimpleSpectrumAnalyzer simpleSpectrumAnalyzer = new SimpleSpectrumAnalyzer();
@@ -83,6 +63,7 @@ public class Music extends AppCompatActivity {
         }
     };
     ButtonSetListener buttonSetListener = new ButtonSetListener();
+    LedCubeMotion ledCubeMotion;
     private ImageView previous;
     private ImageView next;
     private ImageView bluetoothButton;
@@ -94,6 +75,7 @@ public class Music extends AppCompatActivity {
     private List<Map<String, Object>> filesList;
     private List<String> names;
     private List<String> paths;
+    private int level = 0;  //fileManager目前的階層，紀錄進入或退出資料夾的情形
     private Hashtable<String, Integer> fileTable = new Hashtable<>();
     private int[] fileImg = {
             R.drawable.directory,
@@ -105,7 +87,6 @@ public class Music extends AppCompatActivity {
     // 路徑存放處
     private String mp3Path[] = {"/sdcard/Download", "/sdcard/Ringtones", "/sdcard/Music"};
 
-    LedCubeMotion ledCubeMotion;
     @Override
     protected void onCreate(final Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -162,43 +143,63 @@ public class Music extends AppCompatActivity {
         pairedListDialog = new ListDialog(this, new PairedListListener(this), "已配對裝置列表");
         effectSettingDialog = new EffectSettingDialog(this, R.layout.effect_dialog, "效果列表", ledCubeMotion);
 
+        if (ledCubeController.isConnected()) {
+            bluetoothButton.setImageDrawable(this.getResources().getDrawable(R.drawable.bluetooth_blue));
+            player.addPlayingAction(ledCubeMotion);
+        }
 
-        //file manager 呼叫
         findMp3();
         initView();
-        for(int i = 0; i < mp3Path.length; i++)
-        {
+        for (int i = 0; i < mp3Path.length; i++) {
             FileListener fileListener = new FileListener(mp3Path[i], FileObserver.CREATE | FileObserver.DELETE);
             fileListenerList.add(fileListener);
             fileListener.startWatching();
         }
 
-        if (ledCubeController.isConnected())
-        {
-            bluetoothButton.setImageDrawable(this.getResources().getDrawable(R.drawable.bluetooth_blue));
-            player.addPlayingAction(ledCubeMotion);
+        if (paths.size() > 0) {
+            if (paths.get(0).contains(".mp3"))
+                initPlayerAndGo(paths.get(0), false);
+        }
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (level <= 0) {
+            Intent startMain = new Intent(Intent.ACTION_MAIN);
+            startMain.addCategory(Intent.CATEGORY_HOME);
+            startMain.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(startMain);
+        } else if (nowPath != null) {
+            level--;
+            File file = new File(nowPath);
+            nowPath = nowPath.substring(0, nowPath.lastIndexOf('/'));
+            if (!file.isDirectory())
+                nowPath = nowPath.substring(0, nowPath.lastIndexOf('/'));
+            paths.clear();
+            filesList.clear();
+            getFileDirectory(nowPath);//設定
+            simpleAdapter.notifyDataSetChanged();//顯示
         }
 
-        if(paths.size() > 0)
-            initPlayerAndGo(paths.get(0), false);
     }
 
     public void initPlayerAndGo(String filePath, boolean play) {
-        if(filePath == null)
+        if (filePath == null)
             return;
         nowPath = filePath;
+        if (!nowPath.contains(".mp3"))
+            return;
         MediaMetadataRetriever mmr = new MediaMetadataRetriever();
         mmr.setDataSource(filePath);
         player.pause();
-//        while (player.isPlaying());   //造成當機，原因未知
         long t = System.nanoTime();
-        while(System.nanoTime() - t < 1000000000 / 2);
+        while (System.nanoTime() - t < 1000000000 / 2) ;
         player.init(filePath);
         durationBar.setMax(player.getDuration());
-        Log.d("duration", ""+ (player.getDuration() / 1000));
+        Log.d("duration", "" + (player.getDuration() / 1000));
         durationBar.setProgress(0);
         String fileName = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE);
-        if(fileName == null || fileName.equals(""))
+        if (fileName == null || fileName.equals(""))
             fileName = nowPath.substring(nowPath.lastIndexOf('/') + 1);
         txvFilename.setText(fileName);
         if (play) {
@@ -211,64 +212,40 @@ public class Music extends AppCompatActivity {
         }
 
         byte[] imageData = mmr.getEmbeddedPicture();
-        if(imageData != null)
-        {
+        if (imageData != null) {
             Bitmap img = BitmapFactory.decodeStream(new ByteArrayInputStream(imageData));
-             albumCover.setImageDrawable(new BitmapDrawable(getResources(), img));
-        }
-        else
+            albumCover.setImageDrawable(new BitmapDrawable(getResources(), img));
+        } else
             albumCover.setImageDrawable(getResources().getDrawable(R.drawable.cd));
-//        try {
-//            Mp3File song = new Mp3File(nowPath);
-//            if (song.hasId3v2Tag()){
-//                ID3v2 id3v2tag = song.getId3v2Tag();
-//                byte[] imageData = id3v2tag.getAlbumImage();
-//                //converting the bytes to an image
-//                if(imageData != null) {
-//                    Bitmap img = BitmapFactory.decodeStream(new ByteArrayInputStream(imageData));
-//                    albumCover.setImageDrawable(new BitmapDrawable(getResources(), img));
-//                }
-//                else
-//                    albumCover.setImageDrawable(getResources().getDrawable(R.drawable.cd));
-//            }
-//            else
-//                albumCover.setImageDrawable(getResources().getDrawable(R.drawable.cd));
-//        } catch (IOException | UnsupportedTagException | InvalidDataException e) {
-//            e.printStackTrace();
-//        }
-
-
     }
 
     //file manager 函式
     private void initView() {
         //設定simpleAdapter
-        simpleAdapter = new SimpleAdapter(this,
-                filesList, R.layout.simple_adapter, new String[]{IMG_ITEM, NAME_ITEM},
-                new int[]{R.id.image, R.id.text});
+        if (simpleAdapter == null)
+            simpleAdapter = new SimpleAdapter(this,
+                    filesList, R.layout.simple_adapter, new String[]{IMG_ITEM, NAME_ITEM},
+                    new int[]{R.id.image, R.id.text});
         listView = (ListView) findViewById(R.id.list_view);
         listView.setAdapter(simpleAdapter);
         //對於點選，所做的後續操作
         listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                String target = paths.get(position);//取得是按下哪一個檔案或資料夾的路徑(String)
-
-                File file = new File(target);
+                nowPath = paths.get(position);//取得是按下哪一個檔案或資料夾的路徑(String)
+                File file = new File(nowPath);
+                Log.d("mytest", nowPath);
                 if (file.canRead()) {//如果可以讀取
                     if (file.isDirectory()) {//如果是資料夾
-                        nowPath = paths.get(position);//取得路徑
-                        getFileDirectory(paths.get(position));//設定
+                        paths.clear();
+                        filesList.clear();
+                        getFileDirectory(nowPath);//設定
+                        level++;
                         simpleAdapter.notifyDataSetChanged();//顯示
-                        //Toast.makeText(MainActivity.this, nowPath, Toast.LENGTH_LONG).show();
                     } else {//如果是檔案
                         //Toast.makeText(Music.this, R.string.is_not_directory, Toast.LENGTH_SHORT).show();
-                        nowPath = paths.get(position);//路徑位址!!!!!!<-----------------
                         initPlayerAndGo(nowPath, true);
-                        //Toast.makeText(Music.this, nowPath, Toast.LENGTH_SHORT).show();
                     }
-                } else {
-                    //Toast.makeText(Music.this, R.string.can_not_read, Toast.LENGTH_SHORT).show();
                 }
             }
         });
@@ -276,31 +253,34 @@ public class Music extends AppCompatActivity {
 
     private void findMp3() {
         //初始化
+        filesList = new ArrayList<>();
+        names = new ArrayList<>();
+        paths = new ArrayList<>();
 
-            filesList = new ArrayList<>();
-            names = new ArrayList<>();
-            paths = new ArrayList<>();
 
         //filesList.clear();
         //paths.clear();
 
         //取得路徑裡面的檔案
-        for(String str : mp3Path)
+        for (String str : mp3Path)
             getFileDirectory(str);
         /*if(simpleAdapter != null)
             simpleAdapter.notifyDataSetChanged();*/
     }
 
     private void getFileDirectory(String path) {
-        //filesList.clear();
-        //paths.clear();
 
         File[] files = new File(path).listFiles();
         for (int i = 0; i < files.length; i++) {
-            System.out.println(i + ": " + files[i].getPath());
-            if(files[i].isDirectory())
-                getFileDirectory(files[i].getPath());
-            if (files[i].getName().indexOf(".mp3") != -1) {
+            if (files[i].isDirectory()) {
+                Map<String, Object> filesMap = new HashMap<>();
+                paths.add(files[i].getPath());//加入路徑(KEY，VALUE)
+                filesMap.put(IMG_ITEM, fileImg[0]);
+                filesMap.put(NAME_ITEM, files[i].getName());
+                //getFileDirectory(files[i].getPath());
+                filesList.add(filesMap);
+            }
+            if (files[i].getName().contains(".mp3")) {
 
                 Map<String, Object> filesMap = new HashMap<>();
                 names.add(files[i].getName());//加入檔案名字
@@ -367,7 +347,7 @@ public class Music extends AppCompatActivity {
     private class ButtonSetListener implements View.OnClickListener {
         @Override
         public void onClick(View v) {
-            int index;
+            int index = 0;
             switch (v.getId()) {
                 case R.id.play:
                     if (player.isPlaying()) {
@@ -380,7 +360,11 @@ public class Music extends AppCompatActivity {
                     }
                     break;
                 case R.id.previous:
-                    index = paths.indexOf(nowPath) - 1;
+                    try {
+                        index = paths.indexOf(nowPath) - 1;
+                    } catch (IndexOutOfBoundsException e) {
+                        Log.d("warning", "empty directory");
+                    }
                     if (index < 0) index = 0;
                     initPlayerAndGo(paths.get(index), player.isPlaying());
                     break;
@@ -394,8 +378,7 @@ public class Music extends AppCompatActivity {
                     effectSettingDialog.show();
                     break;
                 case R.id.bluetooth:
-                    if(!ledCubeController.isOpen())
-                    {
+                    if (!ledCubeController.isOpen()) {
                         ledCubeController.open(Music.this);
                         return;
                     }
@@ -466,9 +449,9 @@ public class Music extends AppCompatActivity {
 
         @Override
         public void onEvent(int event, String path) {
-            switch (event){
-                case CREATE: case DELETE:
-                    System.out.println(path);
+            switch (event) {
+                case CREATE:
+                case DELETE:
                     break;
             }
         }
